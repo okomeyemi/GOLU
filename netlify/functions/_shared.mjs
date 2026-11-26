@@ -1,9 +1,8 @@
+
 import { initializeApp, cert, getApps } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 
-// Public Kimi configuration.
-// These are not secrets and should not be Netlify environment variables.
 const KIMI_BASE_URL = 'https://api.moonshot.ai/v1';
 const KIMI_MODEL = 'kimi-k3.1-pro';
 
@@ -36,7 +35,9 @@ export function admin() {
 export async function userFrom(event) {
   const headers = event.headers || {};
   const authorization =
-    headers.authorization || headers.Authorization || '';
+    typeof headers.get === 'function'
+      ? headers.get('authorization') || ''
+      : headers.authorization || headers.Authorization || '';
 
   if (!authorization.startsWith('Bearer ')) {
     throw Object.assign(
@@ -50,14 +51,14 @@ export async function userFrom(event) {
   );
 }
 
-export const json = (statusCode, body) => ({
-  statusCode,
-  headers: {
-    'content-type': 'application/json',
-    'cache-control': 'no-store'
-  },
-  body: JSON.stringify(body)
-});
+// Return a native Response for Netlify Functions.
+export const json = (statusCode, body) =>
+  Response.json(body, {
+    status: statusCode,
+    headers: {
+      'cache-control': 'no-store'
+    }
+  });
 
 export const parse = event =>
   JSON.parse(event.body || '{}');
