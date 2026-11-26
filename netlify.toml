@@ -1,9 +1,16 @@
 [build]
-  command = "npm run build"
-  publish = ".next"
+  publish = "public"
+  functions = "netlify/functions"
 
-[build.environment]
-  NODE_VERSION = "22"
+[functions]
+  node_bundler = "esbuild"
 
-[[plugins]]
-  package = "@netlify/plugin-nextjs"
+[[redirects]]
+  from = "/api/*"
+  to = "/.netlify/functions/:splat"
+  status = 200
+
+[[redirects]]
+  from = "/help"
+  to = "/help.html"
+  status = 200
