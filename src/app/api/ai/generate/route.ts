@@ -34,7 +34,7 @@ export async function POST(req:NextRequest) {
 ASSET PLACEMENT RULES: The business assets list contains real uploaded customer images. Use each asset's URL and follow its placement instruction exactly (examples: homepage hero, logo in header, product card, gallery, team section, background). Preserve the supplied URL exactly; do not invent replacement image URLs. Use the description and notes to choose appropriate alt text, crop, and context. Do not treat customer assets as style references. If an asset placement is unclear, put it in a sensible gallery and mention the decision in layoutNotes.
 
 Reference image URLs are separate design inspiration only; do not copy their exact design. Make all text specific to this business.`;
-  const imageParts=assets.flatMap((asset:{name:string;collection?:string;url:string;placement:string;description?:string;notes?:string})=>[
+  const imageParts=assets.flatMap((asset)=>[
     {type:'text' as const,text:`Business image: ${asset.name}. Collection: ${asset.collection||'General'}. Required placement: ${asset.placement}. Description: ${asset.description||'Not supplied'}. Instructions: ${asset.notes||'None'}.`},
     {type:'image_url' as const,image_url:{url:asset.url}}
   ]).concat((refs).flatMap((url:string,i:number)=>[
