@@ -74,6 +74,10 @@ export default async function handler(request) {
     }
 
     for (const urlValue of refs) {
+      if (typeof urlValue !== 'string') {
+        throw new Error('Invalid reference image.');
+      }
+
       const url = new URL(urlValue);
 
       if (
@@ -89,9 +93,28 @@ export default async function handler(request) {
       }
     }
 
-    const prompt = `Create a complete original responsive website specification as JSON only.
+    // Preserve every business image and its placement instructions.
+    const assetInstructions = assets.map((a, i) => ({
+      number: i + 1,
+      name: a.name || '',
+      placement: a.placement || '',
+      description: a.description || '',
+      notes: a.notes || '',
+      exactImageUrl: a.url
+    }));
 
-Shape:
+    // Preserve all reference URLs and their design purpose.
+    const referenceInstructions = refs.map((url, i) => ({
+      number: i + 1,
+      exactImageUrl: url,
+      purpose: 'Visual design inspiration only. Do not copy.'
+    }));
+
+    const prompt = `Create a complete, original, responsive business website specification.
+
+Return valid JSON only.
+
+Required shape:
 {
   "siteName":"",
   "tagline":"",
@@ -125,52 +148,75 @@ Shape:
   "businessData":{}
 }
 
-Business brief: ${JSON.stringify(d)}
+BUSINESS BRIEF:
+${JSON.stringify(d)}
 
-Use supplied customer image URLs exactly and obey each placement.
-Reference images are style inspiration only; do not copy.
-Make all text specific to this business.`;
+CUSTOMER BUSINESS IMAGES:
+${JSON.stringify(assetInstructions)}
 
-    const parts = assets.flatMap(a => [
-      {
+DESIGN REFERENCE IMAGES:
+${JSON.stringify(referenceInstructions)}
+
+IMPORTANT RULES:
+1. Use customer business image URLs exactly as supplied.
+2. Never invent, modify or replace customer image URLs.
+3. Respect every image's specified placement.
+4. Use the supplied image descriptions and notes.
+5. Reference images are design inspiration only.
+6. Do not copy reference websites or their content.
+7. Create original layouts and business-specific content.
+8. Return every requested page.
+9. Do not omit supplied business assets from the website specification.
+10. Return valid JSON without Markdown fences.`;
+
+    // Groq Qwen accepts a maximum of three images per request.
+    // Business images receive visual priority; reference images
+    // use any remaining visual slots.
+    const visualInputs = [
+      ...assets.map((a, i) => ({
+        label: `Business image ${i + 1}: ${a.name || 'Customer image'}`,
+        url: a.url
+      })),
+      ...refs.map((url, i) => ({
+        label: `Design reference ${i + 1}`,
+        url
+      }))
+    ].slice(0, 3);
+
+    const content = [
+      { type: 'text', text: prompt }
+    ];
+
+    for (const item of visualInputs) {
+      content.push({
         type: 'text',
-        text: `Business image ${a.name}; placement ${a.placement}; description ${a.description || ''}; instructions ${a.notes || ''}`
-      },
-      {
+        text: item.label
+      });
+
+      content.push({
         type: 'image_url',
-        image_url: { url: a.url }
-      }
-    ]).concat(
-      refs.flatMap((url, i) => [
-        {
-          type: 'text',
-          text: `Design reference ${i + 1}: inspiration only.`
-        },
-        {
-          type: 'image_url',
-          image_url: { url }
-        }
-      ])
-    );
+        image_url: { url: item.url }
+      });
+    }
 
     const raw = await kimi([
       {
         role: 'system',
-        content: 'You are GOLU, a senior website designer and coding assistant. Return valid JSON only. Never fabricate image URLs.'
+        content:
+          'You are GOLU, a senior website designer and coding assistant. Produce complete, original, responsive website specifications. Return valid JSON only.'
       },
       {
         role: 'user',
-        content: [
-          { type: 'text', text: prompt },
-          ...parts
-        ]
+        content
       }
     ]);
 
     const siteSpec = safeJson(raw);
 
-    if (!Array.isArray(siteSpec.pages)) {
-      throw new Error('AI returned an incomplete website. Try again.');
+    if (!Array.isArray(siteSpec.pages) || !siteSpec.pages.length) {
+      throw new Error(
+        'AI returned an incomplete website. Please try again.'
+      );
     }
 
     const usage = await consume(u.uid, 'generations');
