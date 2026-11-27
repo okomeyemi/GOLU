@@ -3,8 +3,8 @@ import { initializeApp, cert, getApps } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 
-const KIMI_BASE_URL = 'https://api.moonshot.ai/v1';
-const KIMI_MODEL = 'kimi-k3.1-pro';
+const GROQ_BASE_URL = 'https://api.groq.com/openai/v1';
+const GROQ_MODEL = 'qwen/qwen3.8-27b';
 
 export function admin() {
   if (!getApps().length) {
@@ -51,7 +51,6 @@ export async function userFrom(event) {
   );
 }
 
-// Return a native Response for Netlify Functions.
 export const json = (statusCode, body) =>
   Response.json(body, {
     status: statusCode,
@@ -126,17 +125,18 @@ export async function consume(uid, kind, amount = 1) {
   });
 }
 
+// Kept as "kimi" so existing function imports remain compatible.
 export async function kimi(messages) {
-  const apiKey = process.env.KIMI_API_KEY;
+  const apiKey = process.env.GROQ_API_KEY;
 
   if (!apiKey) {
     throw new Error(
-      'KIMI_API_KEY is missing. Add it to Netlify environment variables.'
+      'GROQ_API_KEY is missing. Add it to Netlify environment variables.'
     );
   }
 
   const response = await fetch(
-    `${KIMI_BASE_URL}/chat/completions`,
+    `${GROQ_BASE_URL}/chat/completions`,
     {
       method: 'POST',
       headers: {
@@ -144,10 +144,11 @@ export async function kimi(messages) {
         'content-type': 'application/json'
       },
       body: JSON.stringify({
-        model: KIMI_MODEL,
+        model: GROQ_MODEL,
         messages,
         max_completion_tokens: 12000,
         reasoning_effort: 'low',
+        reasoning_format: 'hidden',
         response_format: {
           type: 'json_object'
         },
@@ -159,9 +160,11 @@ export async function kimi(messages) {
   const data = await response.json().catch(() => ({}));
 
   if (!response.ok) {
+    console.error('Groq API error:', data);
+
     throw new Error(
       data?.error?.message ||
-      `Kimi request failed (${response.status})`
+      `Groq request failed (${response.status})`
     );
   }
 
@@ -169,7 +172,7 @@ export async function kimi(messages) {
     data?.choices?.[0]?.message?.content;
 
   if (typeof content !== 'string' || !content.trim()) {
-    throw new Error('Kimi returned an empty response.');
+    throw new Error('Groq returned an empty response.');
   }
 
   return content;
